@@ -1,0 +1,232 @@
+FORGE — Build Plan
+
+> Unified MCP orchestrator for Blender, Unreal Engine 5, and Adobe Premiere Pro.  
+> Model, render, and edit from a single prompt.
+
+---
+
+What FORGE Is
+
+FORGE is a multi-app MCP orchestration layer that connects three professional creative tools — Blender, Unreal Engine 5, and Adobe Premiere Pro — to Claude via the Model Context Protocol. Instead of switching between applications and manually transferring render outputs, you describe what you want in a single natural language prompt and FORGE handles the sequencing, execution, and file handoff across the entire pipeline.
+
+A single prompt like:
+
+> "Render the campfire scene from Blender at 1080p, wait for the output, then import it into the current Premiere sequence on track V2 and cut it at the 4-second mark."
+
+...executes across all three applications without you touching any of them.
+
+---
+
+Architecture Overview
+
+FORGE is structured in four layers:
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 1 — Intent                               │
+│  Claude Desktop / Claude Code                   │
+│  Natural language prompt from the user          │
+└────────────────────┬────────────────────────────┘
+                     │ MCP stdio / HTTP
+┌────────────────────▼────────────────────────────┐
+│  Layer 2 — Protocol (FORGE Orchestrator)        │
+│  Python FastMCP server                          │
+│  Routes tools · Sequences operations            │
+│  Watches render output · Manages state          │
+└──────┬─────────────┬──────────────┬─────────────┘
+       │             │              │
+┌──────▼──────┐ ┌────▼──────┐ ┌────▼────────────┐
+│ Blender MCP │ │ Unreal MCP│ │  Premiere MCP   │
+│ Python addon│ │ UE5.8     │ │  Node.js +      │
+│ port 9876   │ │ native    │ │  CEP bridge     │
+│             │ │ port 55557│ │                 │
+└──────┬──────┘ └────┬──────┘ └────┬────────────┘
+       │             │              │
+┌──────▼─────────────▼──────────────▼────────────┐
+│  Layer 4 — Output (shared render pipeline)      │
+│  D:/forge/renders/                              │
+│  blender/  ue5/  premiere/  finals/             │
+│  EXR · PNG · MP4                                │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+Core Components
+
+### FORGE Orchestrator
+The piece that doesn't exist yet — what this repo builds.
+
+A Python FastMCP server registered in Claude Desktop alongside the three app MCPs. It exposes high-level pipeline tools to Claude and internally coordinates the app adapters, the render watcher, and the state store.
+
+- **Router** — parses Claude's intent and sequences tool calls across apps
+- **Tool registry** — FastMCP tool definitions exposed to Claude
+- **Render watcher** — Python `watchdog` listener on the pipeline folder; fires when a render lands
+- **State store** — in-memory dict tracking active jobs, output paths, pipeline status
+- **Pipeline config** — `forge.yaml` defines ports, paths, formats, and fps per project
+
+### App Adapters (all reused from existing OSS)
+FORGE does not replace or rewrite these. It calls them as sub-clients.
+
+| Adapter | Source | Transport |
+|---|---|---|
+| Blender MCP | `github.com/ahujasid/blender-mcp` | TCP socket port 9876 |
+| Unreal MCP | UE5.8 native plugin (Epic) | HTTP port 55557 |
+| Premiere MCP | `github.com/leancoderkavy/premiere-pro-mcp` | stdio + CEP file bridge |
+
+### Shared Pipeline Folder
+The filesystem is the handoff point between apps. Every render output lands in a structured folder that all three adapters and the watcher have access to.
+
+```
+D:/forge/renders/
+├── blender/       ← Blender render output (EXR sequences, PNG)
+├── ue5/           ← Unreal Movie Render Queue output
+├── premiere/      ← Premiere exports and proxies
+└── finals/        ← Completed deliverables
+```
+
+---
+
+Tool Surface (what Claude sees)
+
+These are the high-level MCP tools FORGE exposes:
+
+| Tool | Description |
+|---|---|
+| `render_scene` | Trigger a render in Blender or UE5 with params |
+| `get_render_status` | Check if a render job is complete, return output path |
+| `import_render` | Import latest render output into Premiere timeline |
+| `run_pipeline` | Execute a full Blender → UE5 → Premiere sequence |
+| `get_pipeline_status` | Return current state of all three apps |
+| `set_output_path` | Override the default render output directory |
+| `list_render_outputs` | List all files in the pipeline folder |
+
+---
+
+Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Orchestrator | Python 3.11+, `fastmcp`, `asyncio` |
+| Render watcher | `watchdog` |
+| Config | `pyyaml` — `forge.yaml` per project |
+| Blender adapter | Python addon (`blender-mcp`) |
+| UE5 adapter | C++ plugin + Python MCP server (`FastMCP`) |
+| Premiere adapter | Node.js + TypeScript + Adobe CEP / ExtendScript |
+| MCP client | Claude Desktop or Claude Code |
+
+---
+
+Build Phases
+
+### Phase 0 — Verify all three MCPs individually
+Get Blender MCP, UE5 MCP, and Premiere MCP each running in Claude Desktop and confirm basic tool calls work before writing any orchestrator code.
+
+Deliverable: single `claude_desktop_config.json` with all three servers registered and tested.
+
+### Phase 1 — FORGE skeleton
+Create the repo structure, `forge.yaml` config schema, FastMCP server entrypoint, and state store. No app logic yet — just the server boots and Claude can call `get_pipeline_status`.
+
+Deliverable: `forge_server.py` boots, registers with Claude Desktop, returns status.
+
+### Phase 2 — Render watcher
+Implement the `watchdog` file system monitor on the pipeline folder. When a new file lands in `blender/` or `ue5/`, the state store updates and the orchestrator knows the render is complete.
+
+Deliverable: `render_watcher.py` detects new EXR/PNG/MP4 files and logs them to state.
+
+### Phase 3 — High-level tool surface
+Wire `render_scene`, `get_render_status`, `import_render`, and `run_pipeline` to the underlying app adapters. This is where the cross-app magic works for the first time.
+
+Deliverable: single prompt triggers Blender render, watcher detects output, Premiere imports it.
+
+### Phase 4 — End-to-end test
+Full pipeline test: one Claude prompt → Blender render → auto-detected by watcher → imported into Premiere timeline → basic cut applied → export.
+
+Deliverable: recorded demo, test log.
+
+### Phase 5 — Documentation and release
+Write README, CLAUDE.md spec, and `forge.yaml` reference. Tag v0.1.0.
+
+Deliverable: public GitHub repo ready for contributors.
+
+---
+
+Repo Structure
+
+```
+forge/
+├── forge_server.py          ← FastMCP orchestrator entrypoint
+├── router.py                ← Intent parser and tool sequencer
+├── render_watcher.py        ← watchdog filesystem monitor
+├── state.py                 ← In-memory state store
+├── forge.yaml               ← Project pipeline config (user edits this)
+├── forge.example.yaml       ← Reference config with all options documented
+├── CLAUDE.md                ← Spec for AI-assisted development of FORGE itself
+├── PLAN.md                  ← This file
+├── README.md                ← Project overview and setup guide
+├── adapters/
+│   ├── blender.py           ← Blender MCP sub-client wrapper
+│   ├── unreal.py            ← UE5 MCP sub-client wrapper
+│   └── premiere.py          ← Premiere MCP sub-client wrapper
+├── tools/
+│   ├── render.py            ← render_scene, get_render_status
+│   ├── pipeline.py          ← run_pipeline, get_pipeline_status
+│   └── import_tools.py      ← import_render, list_render_outputs
+└── tests/
+    ├── test_watcher.py
+    ├── test_router.py
+    └── test_pipeline.py
+```
+
+---
+
+Configuration — forge.yaml
+
+```yaml
+# FORGE pipeline configuration
+# Copy forge.example.yaml to forge.yaml and edit for your project
+
+pipeline:
+  render_output: D:/forge/renders/
+  fps: 24
+  default_format: EXR        # EXR | PNG | MP4
+
+blender:
+  port: 9876
+  default_scene: ""          # optional: path to .blend file
+
+unreal:
+  port: 55557
+  project_path: ""           # optional: path to .uproject
+
+premiere:
+  temp_dir: /tmp/premiere-mcp-bridge
+  default_sequence: ""       # optional: sequence name to target
+
+watcher:
+  poll_interval_ms: 500      # how often to check for new render files
+  stabilize_delay_ms: 1000   # wait after file appears before signalling done
+```
+
+---
+
+Current Status
+
+- [ ] Phase 0 — all three MCPs verified individually
+- [ ] Phase 1 — FORGE skeleton
+- [ ] Phase 2 — render watcher
+- [ ] Phase 3 — high-level tool surface
+- [ ] Phase 4 — end-to-end test
+- [ ] Phase 5 — documentation and release
+
+---
+
+Contributing
+
+FORGE is built spec-first. See `CLAUDE.md` for the development workflow.  
+All contributions should include a test in `tests/` and update `PLAN.md` status above.
+
+---
+
+*FORGE is an independent open-source project. Blender, Unreal Engine, and Adobe Premiere Pro are trademarks of their respective owners.*
+
