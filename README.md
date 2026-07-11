@@ -11,7 +11,7 @@ model, render, and edit from a single natural-language prompt.
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows--first-0078D6)
 
-![Uploading forge-banner.png…]()
+<img width="2089" height="753" alt="forge-banner" src="https://github.com/user-attachments/assets/0c6ba91e-cdcd-4cbd-bcaf-16a4bd982d31" />
 
 
 </div>
