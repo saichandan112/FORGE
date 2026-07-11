@@ -1,6 +1,3 @@
-<div align="center">
-
-<img src="assets/forge-banner.png" alt="FORGE — unified MCP orchestrator for Blender, Unreal Engine 5, and Adobe Premiere Pro" width="100%">
 
 # ⚒️ FORGE
 
@@ -14,9 +11,8 @@ model, render, and edit from a single natural-language prompt.
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows--first-0078D6)
 
-<!-- After your first push to GitHub, add the live CI badge back (replace YOUR_USERNAME):
-[![CI](https://github.com/YOUR_USERNAME/forge/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/forge/actions)
--->
+![Uploading forge-banner.png…]()
+
 
 </div>
 
