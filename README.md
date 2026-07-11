@@ -11,7 +11,7 @@ model, render, and edit from a single natural-language prompt.
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows--first-0078D6)
 
-<img width="2089" height="753" alt="forge-banner" src="https://github.com/user-attachments/assets/0c6ba91e-cdcd-4cbd-bcaf-16a4bd982d31" />
+<img width="1672" height="941" alt="ChatGPT Image Jul 11, 2026, 11_26_37 PM" src="https://github.com/user-attachments/assets/e842cd7a-4ec3-43fd-a088-593f21b6f1b0" />
 
 
 </div>
